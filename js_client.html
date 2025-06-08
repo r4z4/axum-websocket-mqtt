@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>WebSocket Test</title>
+</head>
+
+<body>
+	<h1>WebSocket Client</h1>
+	<textarea id="output" cols="50" rows="10" readonly></textarea><br />
+	<input type="text" id="input" placeholder="Type a message" />
+	<button onclick="sendMessage()">Send</button>
+	<script>
+		const ws = new WebSocket("ws://127.0.0.1:3000/ws");
+		const output = document.getElementById("output");
+		const input = document.getElementById("input");
+		ws.onmessage = (event) => {
+			output.value += `\n${event.data}`;
+		};
+		function sendMessage() {
+			const message = input.value;
+			ws.send(message);
+			input.value = "";
+		}
+	</script>
+</body>
+
+</html>
