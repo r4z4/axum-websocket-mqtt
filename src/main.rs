@@ -8,6 +8,14 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tokio::sync::broadcast::{self, Receiver, Sender};
+use std::time::Duration;
+use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, QoS};
+
+const PORT: u16 = 3000;
+const MQTT_HOST: &'static str = "192.168.1.139";
+const MQTT_PORT: u16 = 1883;
+const MQTT_ID: &'static str = "admin";
+const MQTT_PASS: &'static str = "adminpwd";
 
 #[tokio::main]
 async fn main() {
@@ -29,6 +37,7 @@ async fn main() {
         .await
         .unwrap();
 }
+
 async fn handle_websocket(
     ws: WebSocketUpgrade,
     state: Arc<Mutex<broadcast::Sender<String>>>,
@@ -39,12 +48,21 @@ async fn handle_socket(
     socket: axum::extract::ws::WebSocket,
     state: Arc<Mutex<broadcast::Sender<String>>>,
 ) {
+    // Subscribe to & Handle MQTT
+    let topic = "esp32/sensor_data";
+    let (client, eventloop) = set_up_client(topic);
+
     let tx = state.lock().await.clone();
     let rx = tx.subscribe();
+   
+    let arc_tx = Arc::new(Mutex::new(tx));
+    let tx1 = arc_tx.clone();
+    let tx2 = arc_tx.clone();
 
+    tokio::spawn(subscribe_and_handle(tx1, client, eventloop, topic));
     let (sender, receiver) = socket.split();
     tokio::spawn(write(rx, sender));
-    tokio::spawn(read(tx, receiver));
+    tokio::spawn(read(tx2, receiver));
 
     // Spawn a task to receive messages from other clients
     // tokio::spawn(async move {
@@ -62,13 +80,66 @@ async fn handle_socket(
         }
     }
     // tokio::spawn(async move {
-    async fn read(tx: Sender<String>, mut receiver: SplitStream<WebSocket>) {
+    async fn read(tx: Arc<Mutex<Sender<String>>>, mut receiver: SplitStream<WebSocket>) {
         // Read messages from the client and broadcast them
         while let Some(Ok(msg)) = receiver.next().await {
             dbg!("Received Message {:?}", msg.clone());
             if let axum::extract::ws::Message::Text(text) = msg {
-                let _ = tx.send(text.to_string());
+                let sender = tx.lock().await;
+                let _ = sender.send(text.to_string());
             }
+        }
+    }
+}
+
+fn set_up_client(topic: &'static str) -> (AsyncClient, EventLoop) {
+    println!("Setting Up Client for {}", topic);
+    let mut mqttoptions = MqttOptions::new(format!("rumqtt-async-{}", topic), MQTT_HOST, MQTT_PORT);
+    mqttoptions.set_credentials(MQTT_ID, MQTT_PASS);
+    mqttoptions.set_keep_alive(Duration::from_secs(5));
+
+    let (client, eventloop) = AsyncClient::new(mqttoptions, 10);
+    return (client, eventloop);
+}
+
+async fn subscribe_and_handle(
+    tx: Arc<Mutex<Sender<String>>>,
+    client: AsyncClient,
+    mut eventloop: EventLoop,
+    topic: &'static str,
+) {
+    println!("Setting up subscription");
+    client.subscribe(topic, QoS::AtMostOnce).await.unwrap();
+
+    println!("Subscribing to {}", topic);
+
+    while let Ok(notification) = eventloop.poll().await {
+        // dbg!(notification.clone());
+        match notification {
+            Event::Incoming(packet) => {
+                match packet {
+                    Packet::Publish(msg) => {
+                        let topic = msg.topic;
+                        let payload = msg.payload;
+                        let payload_vec = payload.to_vec();
+                        // callbacks.get(topic).map(|cb| cb(msg.payload));
+                        // println!("{}", payload);
+                        let publish = format!("Topic => {} :: Payload => {:?}",
+                            topic,
+                            String::from_utf8(payload_vec.clone())
+                        );
+                        println!(
+                            "Topic => {} :: Payload => {:?}",
+                            topic,
+                            String::from_utf8(payload_vec)
+                        );
+                        let sender = tx.lock().await;
+                        let _ = sender.send(publish);
+                    }
+                    _ => (),
+                }
+            }
+            _ => (),
         }
     }
 }
