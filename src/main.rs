@@ -49,8 +49,8 @@ async fn handle_socket(
     state: Arc<Mutex<broadcast::Sender<String>>>,
 ) {
     // Subscribe to & Handle MQTT
-    let topic = "esp32/sensor_data";
-    let (client, eventloop) = set_up_client(topic);
+    let topic_dh = "esp32/sensor_data";
+    let topic_hc = "esp32/sensor_data_hc_sr04";
 
     let tx = state.lock().await.clone();
     let rx = tx.subscribe();
@@ -58,11 +58,17 @@ async fn handle_socket(
     let arc_tx = Arc::new(Mutex::new(tx));
     let tx1 = arc_tx.clone();
     let tx2 = arc_tx.clone();
+    let tx3 = arc_tx.clone();
 
-    tokio::spawn(subscribe_and_handle(tx1, client, eventloop, topic));
+    // DH Sensor
+    tokio::spawn(subscribe_and_handle(tx1, topic_dh));
+    // Ultrasonic Sensor
+    tokio::spawn(subscribe_and_handle(tx2, topic_hc));
+    
+    // WS Splits
     let (sender, receiver) = socket.split();
     tokio::spawn(write(rx, sender));
-    tokio::spawn(read(tx2, receiver));
+    tokio::spawn(read(tx3, receiver));
 
     // Spawn a task to receive messages from other clients
     // tokio::spawn(async move {
@@ -104,11 +110,11 @@ fn set_up_client(topic: &'static str) -> (AsyncClient, EventLoop) {
 
 async fn subscribe_and_handle(
     tx: Arc<Mutex<Sender<String>>>,
-    client: AsyncClient,
-    mut eventloop: EventLoop,
     topic: &'static str,
 ) {
     println!("Setting up subscription");
+
+    let (client, mut eventloop) = set_up_client(topic);
     client.subscribe(topic, QoS::AtMostOnce).await.unwrap();
 
     println!("Subscribing to {}", topic);
