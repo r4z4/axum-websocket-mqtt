@@ -24,11 +24,32 @@ async fn main() {
     let state = Arc::new(Mutex::new(tx));
     // Build the Axum application
     let app = Router::new().route(
-        "/ws",
+        "/ws/dh",
         get({
             let state = state.clone();
-            move |ws: WebSocketUpgrade| handle_websocket(ws, state.clone())
+            move |ws: WebSocketUpgrade| handle_websocket(ws, state.clone(), "dh")
         }),
+    )
+    .route(
+        "/ws/hc",
+        get({
+            let state = state.clone();
+            move |ws: WebSocketUpgrade| handle_websocket(ws, state.clone(), "hc")
+        }),
+    ) 
+    .route(
+        "/ws/re",
+        get({
+            let state = state.clone();
+            move |ws: WebSocketUpgrade| handle_websocket(ws, state.clone(), "re")
+        }),
+    )
+    .route(
+        "/ws/pr",
+        get({
+            let state = state.clone();
+            move |ws: WebSocketUpgrade| handle_websocket(ws, state.clone(), "pr")
+        })
     );
     // Start the server
     let listener = TcpListener::bind("127.0.0.1:3000").await.unwrap();
@@ -41,39 +62,50 @@ async fn main() {
 async fn handle_websocket(
     ws: WebSocketUpgrade,
     state: Arc<Mutex<broadcast::Sender<String>>>,
+    topic: &'static str
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state))
+    ws.on_upgrade(move |socket| handle_socket(socket, state, topic))
 }
 async fn handle_socket(
     socket: axum::extract::ws::WebSocket,
     state: Arc<Mutex<broadcast::Sender<String>>>,
+    topic: &'static str
 ) {
     // Subscribe to & Handle MQTT
-    let topic_dh = "esp32/sensor_data";
-    let topic_hc = "esp32/sensor_data_hc_sr04";
-    let topic_pr = "esp32/photoresistor";
-    let topic_re = "esp32/rotary_encoder";
+    let ws_topic = match topic {
+        "pr" => "esp32/photoresistor",
+        "re" => "esp32/rotary_encoder",
+        "dh" => "esp32/sensor_data",
+        "hc" => "esp32/sensor_data_hc_sr04",
+        _ => ""
+    };
+    // let topic_dh = "esp32/sensor_data";
+    // let topic_hc = "esp32/sensor_data_hc_sr04";
+    // let topic_pr = "esp32/photoresistor";
+    // let topic_re = "esp32/rotary_encoder";
 
     let tx = state.lock().await.clone();
     let rx = tx.subscribe();
    
     let arc_tx = Arc::new(Mutex::new(tx));
-    let tx1 = arc_tx.clone();
-    let tx2 = arc_tx.clone();
-    let tx3 = arc_tx.clone();
-    let tx4 = arc_tx.clone();
+    // let tx1 = arc_tx.clone();
+    // let tx2 = arc_tx.clone();
+    // let tx3 = arc_tx.clone();
+    // let tx4 = arc_tx.clone();
 
     let tx_ws = arc_tx.clone();
 
-    // DH Sensor
-    tokio::spawn(subscribe_and_handle(tx1, topic_dh));
-    // Ultrasonic Sensor
-    tokio::spawn(subscribe_and_handle(tx2, topic_hc));
-    // Photoresistor
-    tokio::spawn(subscribe_and_handle(tx3, topic_pr));
-    // Rotary Encoder
-    tokio::spawn(subscribe_and_handle(tx4, topic_re));
-    
+    // // DH Sensor
+    // tokio::spawn(subscribe_and_handle(tx1, topic_dh));
+    // // Ultrasonic Sensor
+    // tokio::spawn(subscribe_and_handle(tx2, topic_hc));
+    // // Photoresistor
+    // tokio::spawn(subscribe_and_handle(tx3, topic_pr));
+    // // Rotary Encoder
+    // tokio::spawn(subscribe_and_handle(tx4, topic_re));
+
+    tokio::spawn(subscribe_and_handle(arc_tx.clone(), ws_topic));
+    println!("Subscribing to {}", topic); 
     // WS Splits
     let (sender, receiver) = socket.split();
     tokio::spawn(write(rx, sender));

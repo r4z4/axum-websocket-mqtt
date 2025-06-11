@@ -9,15 +9,45 @@
 
 <body>
 	<h1>WebSocket Client</h1>
-	<textarea id="output" cols="50" rows="10" readonly></textarea><br />
-	<input type="text" id="input" placeholder="Type a message" />
-	<button onclick="sendMessage()">Send</button>
+	<!-- <textarea id="output" cols="50" rows="10" readonly></textarea><br /> -->
+	<!-- <input type="text" id="input" placeholder="Type a message" /> -->
+	<!-- <button onclick="sendMessage()">Send</button> -->
+	<div class="container" style="display: flex; font-size: small">
+		<div id="dh_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div>
+		<div id="hc_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div>
+	</div>
+	<div class="container" style="display: flex; font-size: small">
+		<!-- <article style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"> -->
+		<!-- 	<div id="photoresistor"> -->
+		<!-- 		<div id="pr_div"></div> -->
+		<!-- 		<div id="pr_val" class="m-auto text-center text-white"></div> -->
+		<!-- 	</div> -->
+		<!-- </article> -->
+		<div id="pr_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div>
+		<div id="re_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div>
+	</div>
 	<script>
-		const ws = new WebSocket("ws://127.0.0.1:3000/ws");
-		const output = document.getElementById("output");
+		const ws_dh = new WebSocket("ws://127.0.0.1:3000/ws/dh");
+		const ws_hc = new WebSocket("ws://127.0.0.1:3000/ws/hc");
+		const ws_pr = new WebSocket("ws://127.0.0.1:3000/ws/pr");
+		const ws_re = new WebSocket("ws://127.0.0.1:3000/ws/re");
+
+		const dh_output = document.getElementById("dh_events");
+		const hc_output = document.getElementById("hc_events");
+		const pr_output = document.getElementById("pr_events");
+		const re_output = document.getElementById("re_events");
 		const input = document.getElementById("input");
-		ws.onmessage = (event) => {
-			output.value += `\n${event.data}`;
+		ws_dh.onmessage = (event) => {
+			dh_output.innerHTML += `\n${event.data}`;
+		};
+		ws_hc.onmessage = (event) => {
+			hc_output.innerHTML += `\n${event.data}`;
+		};
+		ws_pr.onmessage = (event) => {
+			pr_output.innerHTML += `\n${event.data}`;
+		};
+		ws_re.onmessage = (event) => {
+			re_output.innerHTML += `\n${event.data}`;
 		};
 		function sendMessage() {
 			const message = input.value;
