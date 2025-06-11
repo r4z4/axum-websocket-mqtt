@@ -51,6 +51,8 @@ async fn handle_socket(
     // Subscribe to & Handle MQTT
     let topic_dh = "esp32/sensor_data";
     let topic_hc = "esp32/sensor_data_hc_sr04";
+    let topic_pr = "esp32/photoresistor";
+    let topic_re = "esp32/rotary_encoder";
 
     let tx = state.lock().await.clone();
     let rx = tx.subscribe();
@@ -59,16 +61,23 @@ async fn handle_socket(
     let tx1 = arc_tx.clone();
     let tx2 = arc_tx.clone();
     let tx3 = arc_tx.clone();
+    let tx4 = arc_tx.clone();
+
+    let tx_ws = arc_tx.clone();
 
     // DH Sensor
     tokio::spawn(subscribe_and_handle(tx1, topic_dh));
     // Ultrasonic Sensor
     tokio::spawn(subscribe_and_handle(tx2, topic_hc));
+    // Photoresistor
+    tokio::spawn(subscribe_and_handle(tx3, topic_pr));
+    // Rotary Encoder
+    tokio::spawn(subscribe_and_handle(tx4, topic_re));
     
     // WS Splits
     let (sender, receiver) = socket.split();
     tokio::spawn(write(rx, sender));
-    tokio::spawn(read(tx3, receiver));
+    tokio::spawn(read(tx_ws, receiver));
 
     // Spawn a task to receive messages from other clients
     // tokio::spawn(async move {
@@ -132,7 +141,7 @@ async fn subscribe_and_handle(
                         // println!("{}", payload);
                         let publish = format!("Topic => {} :: Payload => {:?}",
                             topic,
-                            String::from_utf8(payload_vec.clone())
+                            String::from_utf8(payload_vec.clone()).unwrap()
                         );
                         println!(
                             "Topic => {} :: Payload => {:?}",
