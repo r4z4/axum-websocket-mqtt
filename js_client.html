@@ -17,13 +17,13 @@
 		<div id="hc_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div>
 	</div>
 	<div class="container" style="display: flex; font-size: small">
-		<!-- <article style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"> -->
-		<!-- 	<div id="photoresistor"> -->
-		<!-- 		<div id="pr_div"></div> -->
-		<!-- 		<div id="pr_val" class="m-auto text-center text-white"></div> -->
-		<!-- 	</div> -->
-		<!-- </article> -->
-		<div id="pr_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div>
+		<article style="flex: 1; width: 50%; height: 50vh; border: 1px solid black">
+			<div id="photoresistor">
+				<div id="pr_div"></div>
+				<div id="pr_val" class="m-auto text-center text-white"></div>
+			</div>
+		</article>
+		<!-- <div id="pr_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div> -->
 		<div id="re_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div>
 	</div>
 	<script>
@@ -44,7 +44,10 @@
 			hc_output.innerHTML += `\n${event.data}`;
 		};
 		ws_pr.onmessage = (event) => {
-			pr_output.innerHTML += `\n${event.data}`;
+			// pr_output.innerHTML += `\n${event.data}`;
+			console.log(event.data);
+			document.getElementById("pr_div").style =
+				`margin: auto; width: 100px; height: 100px; background-color: ${event.data}; border-radius: 50%`;
 		};
 		ws_re.onmessage = (event) => {
 			re_output.innerHTML += `\n${event.data}`;

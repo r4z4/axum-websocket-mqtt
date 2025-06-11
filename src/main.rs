@@ -167,20 +167,22 @@ async fn subscribe_and_handle(
             Event::Incoming(packet) => {
                 match packet {
                     Packet::Publish(msg) => {
-                        let topic = msg.topic;
+                        // let msg_topic = msg.topic;
                         let payload = msg.payload;
                         let payload_vec = payload.to_vec();
                         // callbacks.get(topic).map(|cb| cb(msg.payload));
                         // println!("{}", payload);
-                        let publish = format!("Topic => {} :: Payload => {:?}",
-                            topic,
-                            String::from_utf8(payload_vec.clone()).unwrap()
-                        );
-                        println!(
-                            "Topic => {} :: Payload => {:?}",
-                            topic,
-                            String::from_utf8(payload_vec)
-                        );
+                        // let publish = format!("Topic => {} :: Payload => {:?}",
+                        //     topic,
+                        //     String::from_utf8(payload_vec.clone()).unwrap()
+                        // );
+                        let publish = publish_from_bytes(topic, payload_vec).await;
+
+                        // println!(
+                        //     "Topic => {} :: Payload => {:?}",
+                        //     topic,
+                        //     String::from_utf8(payload_vec)
+                        // );
                         let sender = tx.lock().await;
                         let _ = sender.send(publish);
                     }
@@ -189,5 +191,17 @@ async fn subscribe_and_handle(
             }
             _ => (),
         }
+    }
+}
+
+async fn publish_from_bytes(topic: &'static str, bytes: Vec<u8>) -> String {
+    match topic {
+        "esp32/photoresistor" => {
+            let msg = String::from_utf8(bytes.clone()).unwrap();
+            let int = msg.parse::<i32>().unwrap();
+            let brightness: i32 = int / 10;
+            format!("hsl(90 100% {}%)", brightness)
+        },
+        _ => String::from_utf8(bytes.clone()).unwrap(),
     }
 }
