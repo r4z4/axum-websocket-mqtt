@@ -79,12 +79,13 @@ async fn handle_socket(
         "hc" => "esp32/sensor_data_hc_sr04",
         _ => ""
     };
+    let (tx, _rx) = broadcast::channel::<String>(100);
     // let topic_dh = "esp32/sensor_data";
     // let topic_hc = "esp32/sensor_data_hc_sr04";
     // let topic_pr = "esp32/photoresistor";
     // let topic_re = "esp32/rotary_encoder";
 
-    let tx = state.lock().await.clone();
+    // let tx = state.lock().await.clone();
     let rx = tx.subscribe();
    
     let arc_tx = Arc::new(Mutex::new(tx));
