@@ -4,6 +4,7 @@
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<link rel="stylesheet" href="main.css" />
 	<title>WebSocket Test</title>
 </head>
 
@@ -13,8 +14,19 @@
 	<!-- <input type="text" id="input" placeholder="Type a message" /> -->
 	<!-- <button onclick="sendMessage()">Send</button> -->
 	<div class="container" style="display: flex; font-size: small">
-		<div id="dh_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div>
-		<div id="hc_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div>
+		<!-- <div id="dh_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div> -->
+		<!-- <div id="hc_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div> -->
+
+		<article id="plot_article_dh">
+			<div class="axis" id="plot_x_dh" style="--c: 20; --cx: 1; --cy: 19; --dsize: 6">
+				<!--
+      <div class="dot" style="--x: 1; --y: 3"></div>
+      -->
+			</div>
+		</article>
+		<article id="plot_article_hc">
+			<div class="axis" id="plot_x_hc" style="--c: 20; --cx: 1; --cy: 19; --dsize: 6"></div>
+		</article>
 	</div>
 	<div class="container" style="display: flex; font-size: small">
 		<article style="flex: 1; width: 50%; height: 50vh; border: 1px solid black">
@@ -32,16 +44,29 @@
 		const ws_pr = new WebSocket("ws://127.0.0.1:3000/ws/pr");
 		const ws_re = new WebSocket("ws://127.0.0.1:3000/ws/re");
 
-		const dh_output = document.getElementById("dh_events");
-		const hc_output = document.getElementById("hc_events");
-		const pr_output = document.getElementById("pr_events");
+		const dh_plot_elem = document.getElementById("plot_x_dh");
+		const hc_plot_elem = document.getElementById("plot_x_hc");
+
+		// const dh_output = document.getElementById("dh_events");
+		// const hc_output = document.getElementById("hc_events");
+		// const pr_output = document.getElementById("pr_events");
 		const re_output = document.getElementById("re_events");
 		const input = document.getElementById("input");
 		ws_dh.onmessage = (event) => {
-			dh_output.innerHTML += `\n${event.data}`;
+			// dh_output.innerHTML += `\n${event.data}`;
+			if (dh_plot_elem.childElementCount == 40) {
+				dh_plot_elem.replaceChildren();
+			}
+			node = document.createRange().createContextualFragment(event.data);
+			dh_plot_elem.appendChild(node);
 		};
 		ws_hc.onmessage = (event) => {
-			hc_output.innerHTML += `\n${event.data}`;
+			// hc_output.innerHTML += `\n${event.data}`;
+			if (hc_plot_elem.childElementCount == 20) {
+				hc_plot_elem.replaceChildren();
+			}
+			node = document.createRange().createContextualFragment(event.data);
+			hc_plot_elem.appendChild(node);
 		};
 		ws_pr.onmessage = (event) => {
 			// pr_output.innerHTML += `\n${event.data}`;

@@ -156,6 +156,8 @@ async fn subscribe_and_handle(
 ) {
     println!("Setting up subscription");
 
+    let mut msg_count = -1;
+
     let (client, mut eventloop) = set_up_client(topic);
     client.subscribe(topic, QoS::AtMostOnce).await.unwrap();
 
@@ -167,7 +169,11 @@ async fn subscribe_and_handle(
             Event::Incoming(packet) => {
                 match packet {
                     Packet::Publish(msg) => {
+                        if msg_count >= 19 {
+                            msg_count = -1;
+                        }
                         // let msg_topic = msg.topic;
+                        msg_count += 1;
                         let payload = msg.payload;
                         let payload_vec = payload.to_vec();
                         // callbacks.get(topic).map(|cb| cb(msg.payload));
@@ -176,7 +182,7 @@ async fn subscribe_and_handle(
                         //     topic,
                         //     String::from_utf8(payload_vec.clone()).unwrap()
                         // );
-                        let publish = publish_from_bytes(topic, payload_vec).await;
+                        let publish = publish_from_bytes(topic, payload_vec, msg_count).await;
 
                         // println!(
                         //     "Topic => {} :: Payload => {:?}",
@@ -194,7 +200,7 @@ async fn subscribe_and_handle(
     }
 }
 
-async fn publish_from_bytes(topic: &'static str, bytes: Vec<u8>) -> String {
+async fn publish_from_bytes(topic: &'static str, bytes: Vec<u8>, msg_count: i32) -> String {
     match topic {
         "esp32/photoresistor" => {
             let msg = String::from_utf8(bytes.clone()).unwrap();
@@ -202,6 +208,78 @@ async fn publish_from_bytes(topic: &'static str, bytes: Vec<u8>) -> String {
             let brightness: i32 = int / 10;
             format!("hsl(90 100% {}%)", brightness)
         },
+        "esp32/sensor_data" => {
+            // <div class="dot" style="--x: 1; --y: 3"></div>
+            let msg = String::from_utf8(bytes.clone()).unwrap();
+            // let x_val = 2;
+            if let Some((temp, hum)) = parse_message_to_float(msg.as_str()) {
+                format!("<div class='dot' style='--x: {}; --y: {}'></div><div class='dot' style='--x: {}; --y: {}'></div>", msg_count, temp / 20.0, msg_count, hum / 20.0)
+            } else {
+                "<div class='dot' style='--x: 19; --y: 19'><div>".to_string()
+            } 
+        },
+        "esp32/sensor_data_hc_sr04" => {
+            let msg = String::from_utf8(bytes.clone()).unwrap();
+            // let x_val = 2;
+            if let Some((_ins, cms)) = parse_message_to_int(msg.as_str()) {
+                // Only CMs
+                format!("<div class='dot' style='--x: {}; --y: {}'></div>", msg_count, cms)
+            } else {
+                "<div class='dot' style='--x: 19; --y: 19'><div>".to_string()
+            } 
+        }
         _ => String::from_utf8(bytes.clone()).unwrap(),
     }
+}
+
+fn parse_message_to_float(message: &str) -> Option<(f32, f32)> {
+
+    let parts: Vec<&str> = message.split(';').collect();
+    
+    if parts.len() != 2 {
+        return None; // Invalid format
+    }
+
+    let first_part = parts[0];
+    let second_part = parts[1];
+
+    // let first_val = first_part.chars().last().unwrap();
+    // let second_val = second_part.chars().last().unwrap();
+    //
+    let new_first_parts: Vec<&str> = first_part.split(':').collect();
+    let first_number = new_first_parts[1].trim();
+
+    let new_second_parts: Vec<&str> = second_part.split(':').collect();
+    let second_number = new_second_parts[1].trim();
+
+    let first_flt = first_number.parse::<f32>().unwrap();
+    let second_flt = second_number.parse::<f32>().unwrap();
+
+    Some((first_flt, second_flt))
+
+}
+fn parse_message_to_int(message: &str) -> Option<(u32, u32)> {
+    let parts: Vec<&str> = message.split(';').collect();
+    
+    if parts.len() != 2 {
+        return None; // Invalid format
+    }
+
+    let first_part = parts[0];
+    let second_part = parts[1];
+
+    // let first_val = first_part.chars().last().unwrap();
+    // let second_val = second_part.chars().last().unwrap();
+    //
+    let new_first_parts: Vec<&str> = first_part.split(':').collect();
+    let first_number = new_first_parts[1].trim();
+
+    let new_second_parts: Vec<&str> = second_part.split(':').collect();
+    let second_number = new_second_parts[1].trim();
+
+    let first_int = first_number.parse::<u32>().unwrap();
+    let second_int = second_number.parse::<u32>().unwrap();
+
+    Some((first_int, second_int))
+
 }
