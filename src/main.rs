@@ -4,6 +4,8 @@ use futures_util::{
     sink::SinkExt,
     stream::{SplitSink, SplitStream, StreamExt},
 };
+
+use services::mqtt_svcs::{publish_default, publish_dh, publish_hc, publish_pr, publish_rgb};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
@@ -11,8 +13,12 @@ use tokio::sync::broadcast::{self, Receiver, Sender};
 use std::time::Duration;
 use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, QoS};
 
-const PORT: u16 = 3000;
-const MQTT_HOST: &'static str = "192.168.1.139";
+// Modules
+mod services;
+
+// const PORT: u16 = 3000;
+const MQTT_PIXEL_HOST: &'static str = "192.168.1.139";
+// const MQTT_ESP_HOST: &'static str = "192.168.1.13";
 const MQTT_PORT: u16 = 1883;
 const MQTT_ID: &'static str = "admin";
 const MQTT_PASS: &'static str = "adminpwd";
@@ -24,33 +30,13 @@ async fn main() {
     let state = Arc::new(Mutex::new(tx));
     // Build the Axum application
     let app = Router::new().route(
-        "/ws/dh",
+        "/ws/sensors",
         get({
             let state = state.clone();
-            move |ws: WebSocketUpgrade| handle_websocket(ws, state.clone(), "dh")
+            move |ws: WebSocketUpgrade| handle_websocket(ws, state.clone(), "sensors")
         }),
-    )
-    .route(
-        "/ws/hc",
-        get({
-            let state = state.clone();
-            move |ws: WebSocketUpgrade| handle_websocket(ws, state.clone(), "hc")
-        }),
-    ) 
-    .route(
-        "/ws/re",
-        get({
-            let state = state.clone();
-            move |ws: WebSocketUpgrade| handle_websocket(ws, state.clone(), "re")
-        }),
-    )
-    .route(
-        "/ws/pr",
-        get({
-            let state = state.clone();
-            move |ws: WebSocketUpgrade| handle_websocket(ws, state.clone(), "pr")
-        })
     );
+
     // Start the server
     let listener = TcpListener::bind("127.0.0.1:3000").await.unwrap();
     println!("Listening on http://127.0.0.1:3000");
@@ -68,45 +54,37 @@ async fn handle_websocket(
 }
 async fn handle_socket(
     socket: axum::extract::ws::WebSocket,
-    state: Arc<Mutex<broadcast::Sender<String>>>,
-    topic: &'static str
+    _state: Arc<Mutex<broadcast::Sender<String>>>,
+    _topic: &'static str
 ) {
     // Subscribe to & Handle MQTT
-    let ws_topic = match topic {
-        "pr" => "esp32/photoresistor",
-        "re" => "esp32/rotary_encoder",
-        "dh" => "esp32/sensor_data",
-        "hc" => "esp32/sensor_data_hc_sr04",
-        _ => ""
-    };
+    // let ws_topic = match topic {
+    //     "pr" => "esp32/photoresistor",
+    //     "re" => "esp32/rotary_encoder",
+    //     "dh" => "esp32/sensor_data",
+    //     "hc" => "esp32/sensor_data_hc_sr04",
+    //     _ => ""
+    // };
+    let ws_topics = vec![
+        "esp32/photoresistor",
+        "esp32/rotary_encoder",
+        "esp32/sensor_data",
+        "esp32/rgb",
+        "esp32/sensor_data_hc_sr04"
+    ];
     let (tx, _rx) = broadcast::channel::<String>(100);
-    // let topic_dh = "esp32/sensor_data";
-    // let topic_hc = "esp32/sensor_data_hc_sr04";
-    // let topic_pr = "esp32/photoresistor";
-    // let topic_re = "esp32/rotary_encoder";
 
     // let tx = state.lock().await.clone();
     let rx = tx.subscribe();
    
     let arc_tx = Arc::new(Mutex::new(tx));
-    // let tx1 = arc_tx.clone();
-    // let tx2 = arc_tx.clone();
-    // let tx3 = arc_tx.clone();
-    // let tx4 = arc_tx.clone();
 
     let tx_ws = arc_tx.clone();
 
-    // // DH Sensor
-    // tokio::spawn(subscribe_and_handle(tx1, topic_dh));
-    // // Ultrasonic Sensor
-    // tokio::spawn(subscribe_and_handle(tx2, topic_hc));
-    // // Photoresistor
-    // tokio::spawn(subscribe_and_handle(tx3, topic_pr));
-    // // Rotary Encoder
-    // tokio::spawn(subscribe_and_handle(tx4, topic_re));
-
-    tokio::spawn(subscribe_and_handle(arc_tx.clone(), ws_topic));
-    println!("Subscribing to {}", topic); 
+    for topic in ws_topics {
+        tokio::spawn(subscribe_and_handle(arc_tx.clone(), topic));
+        println!("Subscribing to {}", topic); 
+    }
     // WS Splits
     let (sender, receiver) = socket.split();
     tokio::spawn(write(rx, sender));
@@ -142,13 +120,15 @@ async fn handle_socket(
 
 fn set_up_client(topic: &'static str) -> (AsyncClient, EventLoop) {
     println!("Setting Up Client for {}", topic);
-    let mut mqttoptions = MqttOptions::new(format!("rumqtt-async-{}", topic), MQTT_HOST, MQTT_PORT);
+    let mut mqttoptions = MqttOptions::new(format!("rumqtt-async-{}", topic), MQTT_PIXEL_HOST, MQTT_PORT);
     mqttoptions.set_credentials(MQTT_ID, MQTT_PASS);
     mqttoptions.set_keep_alive(Duration::from_secs(5));
 
     let (client, eventloop) = AsyncClient::new(mqttoptions, 10);
     return (client, eventloop);
 }
+
+
 
 async fn subscribe_and_handle(
     tx: Arc<Mutex<Sender<String>>>,
@@ -159,7 +139,14 @@ async fn subscribe_and_handle(
     let mut msg_count = -1;
 
     let (client, mut eventloop) = set_up_client(topic);
-    client.subscribe(topic, QoS::AtMostOnce).await.unwrap();
+    
+    // client.subscribe(topic, QoS::AtMostOnce).await.unwrap();
+
+    // Unsure if this is beneficial at all
+    match client.subscribe(topic, QoS::AtMostOnce).await {
+        Ok(_ok) => (),
+        Err(err) => println!("Mqtt error on subscribing: {:?}", err)
+    }
 
     println!("Subscribing to {}", topic);
 
@@ -172,6 +159,19 @@ async fn subscribe_and_handle(
                         if msg_count >= 19 {
                             msg_count = -1;
                         }
+                        dbg!(msg.clone());
+                        dbg!(msg.topic);
+
+                        let js_topic = match topic {
+                            "esp32/photoresistor" => "pr",
+                            "esp32/rotary_encoder" => "re",
+                            "esp32/ir" => "ir",
+                            "esp32/rgb" => "rgb",
+                            "esp32/sensor_data" => "dh",
+                            "esp32/sensor_data_hc_sr04" => "hc",
+                            _ => ""
+                        };
+
                         // let msg_topic = msg.topic;
                         msg_count += 1;
                         let payload = msg.payload;
@@ -182,13 +182,7 @@ async fn subscribe_and_handle(
                         //     topic,
                         //     String::from_utf8(payload_vec.clone()).unwrap()
                         // );
-                        let publish = publish_from_bytes(topic, payload_vec, msg_count).await;
-
-                        // println!(
-                        //     "Topic => {} :: Payload => {:?}",
-                        //     topic,
-                        //     String::from_utf8(payload_vec)
-                        // );
+                        let publish = publish_from_bytes(js_topic, payload_vec, msg_count).await;
                         let sender = tx.lock().await;
                         let _ = sender.send(publish);
                     }
@@ -202,84 +196,12 @@ async fn subscribe_and_handle(
 
 async fn publish_from_bytes(topic: &'static str, bytes: Vec<u8>, msg_count: i32) -> String {
     match topic {
-        "esp32/photoresistor" => {
-            let msg = String::from_utf8(bytes.clone()).unwrap();
-            let int = msg.parse::<i32>().unwrap();
-            let brightness: i32 = int / 10;
-            format!("hsl(90 100% {}%)", brightness)
-        },
-        "esp32/sensor_data" => {
-            // <div class="dot" style="--x: 1; --y: 3"></div>
-            let msg = String::from_utf8(bytes.clone()).unwrap();
-            // let x_val = 2;
-            if let Some((temp, hum)) = parse_message_to_float(msg.as_str()) {
-                format!("<div class='dot' style='--x: {}; --y: {}'></div><div class='dot' style='--x: {}; --y: {}'></div>", msg_count, temp / 20.0, msg_count, hum / 20.0)
-            } else {
-                "<div class='dot' style='--x: 19; --y: 19'><div>".to_string()
-            } 
-        },
-        "esp32/sensor_data_hc_sr04" => {
-            let msg = String::from_utf8(bytes.clone()).unwrap();
-            // let x_val = 2;
-            if let Some((_ins, cms)) = parse_message_to_int(msg.as_str()) {
-                // Only CMs
-                format!("<div class='dot' style='--x: {}; --y: {}'></div>", msg_count, cms)
-            } else {
-                "<div class='dot' style='--x: 19; --y: 19'><div>".to_string()
-            } 
-        }
-        _ => String::from_utf8(bytes.clone()).unwrap(),
+        "pr" => publish_pr(bytes),
+        "dh" => publish_dh(bytes, msg_count),
+        "re" => publish_re(bytes), // TODO: Impl
+        "ir" => publish_ir(bytes), // TODO: Impl
+        "rgb" => publish_rgb(bytes), // TODO: Impl
+        "hc" => publish_hc(bytes, msg_count),
+        _ => publish_default(bytes)
     }
-}
-
-fn parse_message_to_float(message: &str) -> Option<(f32, f32)> {
-
-    let parts: Vec<&str> = message.split(';').collect();
-    
-    if parts.len() != 2 {
-        return None; // Invalid format
-    }
-
-    let first_part = parts[0];
-    let second_part = parts[1];
-
-    // let first_val = first_part.chars().last().unwrap();
-    // let second_val = second_part.chars().last().unwrap();
-    //
-    let new_first_parts: Vec<&str> = first_part.split(':').collect();
-    let first_number = new_first_parts[1].trim();
-
-    let new_second_parts: Vec<&str> = second_part.split(':').collect();
-    let second_number = new_second_parts[1].trim();
-
-    let first_flt = first_number.parse::<f32>().unwrap();
-    let second_flt = second_number.parse::<f32>().unwrap();
-
-    Some((first_flt, second_flt))
-
-}
-fn parse_message_to_int(message: &str) -> Option<(u32, u32)> {
-    let parts: Vec<&str> = message.split(';').collect();
-    
-    if parts.len() != 2 {
-        return None; // Invalid format
-    }
-
-    let first_part = parts[0];
-    let second_part = parts[1];
-
-    // let first_val = first_part.chars().last().unwrap();
-    // let second_val = second_part.chars().last().unwrap();
-    //
-    let new_first_parts: Vec<&str> = first_part.split(':').collect();
-    let first_number = new_first_parts[1].trim();
-
-    let new_second_parts: Vec<&str> = second_part.split(':').collect();
-    let second_number = new_second_parts[1].trim();
-
-    let first_int = first_number.parse::<u32>().unwrap();
-    let second_int = second_number.parse::<u32>().unwrap();
-
-    Some((first_int, second_int))
-
 }
