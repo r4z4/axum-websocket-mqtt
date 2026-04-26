@@ -5,7 +5,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream, StreamExt},
 };
 
-use services::mqtt_svcs::{publish_default, publish_dh, publish_hc, publish_pr, publish_rgb};
+use services::mqtt_svcs::{publish_default, publish_ir, publish_dh, publish_hc, publish_pr, publish_re, publish_rgb};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
@@ -70,7 +70,8 @@ async fn handle_socket(
         "esp32/rotary_encoder",
         "esp32/sensor_data",
         "esp32/rgb",
-        "esp32/sensor_data_hc_sr04"
+        "esp32/sensor_data_hc_sr04",
+        "ESP32_GY_302" // Via ESP_Now on C3 Super Mini
     ];
     let (tx, _rx) = broadcast::channel::<String>(100);
 
@@ -169,6 +170,7 @@ async fn subscribe_and_handle(
                             "esp32/rgb" => "rgb",
                             "esp32/sensor_data" => "dh",
                             "esp32/sensor_data_hc_sr04" => "hc",
+                            "ESP32_GY_302" => "gy",
                             _ => ""
                         };
 
@@ -202,6 +204,7 @@ async fn publish_from_bytes(topic: &'static str, bytes: Vec<u8>, msg_count: i32)
         "ir" => publish_ir(bytes), // TODO: Impl
         "rgb" => publish_rgb(bytes), // TODO: Impl
         "hc" => publish_hc(bytes, msg_count),
+        "gy" => publish_gy(bytes),
         _ => publish_default(bytes)
     }
 }

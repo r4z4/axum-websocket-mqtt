@@ -5,6 +5,7 @@
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<link rel="stylesheet" href="main.css" />
+	<script src="x-rgb.js" defer></script>
 	<title>WebSocket Test</title>
 </head>
 
@@ -38,6 +39,16 @@
 		<!-- <div id="pr_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div> -->
 		<div id="re_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div>
 	</div>
+	<div class="container" style="display: flex; font-size: small">
+		<article style="flex: 1; width: 50%; height: 50vh; border: 1px solid black">
+			<div id="light">
+				<div id="gy_div"></div>
+				<div id="gy_val" class="m-auto text-center text-white"></div>
+			</div>
+		</article>
+		<!-- <div id="pr_events" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div> -->
+		<div id="blank_for_now" style="flex: 1; width: 50%; height: 50vh; border: 1px solid black"></div>
+	</div>
 	<script>
 		const ws_sensors = new WebSocket("ws://127.0.0.1:3000/ws/sensors");
 		// const ws_dh = new WebSocket("ws://127.0.0.1:3000/ws/dh");
@@ -54,12 +65,45 @@
 		const re_output = document.getElementById("re_events");
 		const input = document.getElementById("input");
 		ws_sensors.onmessage = (event) => {
-			// console.log(event.data);
-			console.log(event);
+			// console.log(event);
 			const messageData = JSON.parse(event.data);
-			// switch(messageData.topic) {
-			//
-			// }
+			switch (messageData.topic) {
+				case "pr":
+					document.getElementById("pr_div").style =
+						`margin: auto; width: 100px; height: 100px; background-color: ${messageData.data}; border-radius: 50%`;
+
+					break;
+				case "dh":
+					if (dh_plot_elem.childElementCount == 40) {
+						dh_plot_elem.replaceChildren();
+					}
+					node = document
+						.createRange()
+						.createContextualFragment(messageData.data);
+					dh_plot_elem.appendChild(node);
+					break;
+				case "hc":
+					if (hc_plot_elem.childElementCount == 20) {
+						hc_plot_elem.replaceChildren();
+					}
+					node = document
+						.createRange()
+						.createContextualFragment(messageData.data);
+					hc_plot_elem.appendChild(node);
+					break;
+				case "re":
+					re_output.innerHTML += `\n${messageData.data}`;
+					break;
+				case "rgb":
+					break;
+				case "gy": // Light Intensity
+					document.getElementById("gy_div").style =
+						`margin: auto; width: 100px; height: 100px; background-color: yellow; filter: brightness(${messageData.data}%); border-radius: 50%`;
+
+					break;
+				default:
+					break;
+			}
 		};
 		// ws_dh.onmessage = (event) => {
 		// 	// dh_output.innerHTML += `\n${event.data}`;

@@ -10,11 +10,35 @@ struct WsMessage {
 
 pub fn publish_pr(bytes: Vec<u8>) -> String {
     let msg = get_string_from_utf(bytes);
+    dbg!(&msg);
     let int = parse_val::<i32>(&msg);
-    let brightness: i32 = int / 10;
+    let brightness: i32 = 
+        if int < 50 {
+            50
+        } else {
+            0
+        };
     let data = format!("hsl(90 100% {}%)", brightness);
     let ws_msg = WsMessage {
-        topic: "rgb",
+        topic: "pr",
+        data
+    };
+    send_ws(&ws_msg)
+}
+
+pub fn publish_gy(bytes: Vec<u8>) -> String {
+    let msg = get_string_from_utf(bytes);
+    dbg!(&msg);
+    let float = parse_val::<f32>(&msg);
+    let brightness: i32 = 
+        if float > 10000.0 {
+            100
+        } else {
+            (float / 100.0) as i32
+        };
+    let data = brightness.to_string();
+    let ws_msg = WsMessage {
+        topic: "pr",
         data
     };
     send_ws(&ws_msg)
